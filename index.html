@@ -350,6 +350,7 @@ let state = {
   category: null,
   isOtros: false,
   card: null,
+  sheetGid: null,
   todayRows: JSON.parse(localStorage.getItem("gastos_today") || "[]"),
 };
 
@@ -403,6 +404,23 @@ function initGoogle(){
   setStatus("", "listo para conectar");
 }
 window.addEventListener("load", () => setTimeout(initGoogle, 300));
+
+// ---------- Obtener GID de la hoja de Google ----------
+async function fetchSheetGid() {
+  if (!state.accessToken || state.sheetGid !== null) return state.sheetGid;
+  try {
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${state.config.sheetId}?fields=sheets.properties`, {
+      headers: { "Authorization": `Bearer ${state.accessToken}` }
+    });
+    const data = await res.json();
+    const sheet = data.sheets.find(s => s.properties.title === state.config.sheetTab);
+    if (sheet) state.sheetGid = sheet.properties.sheetId;
+    return state.sheetGid || 0;
+  } catch(e) {
+    console.error(e);
+    return 0;
+  }
+}
 
 // ---------- Tipo de gasto ----------
 const catInput = document.getElementById("customCategory");
@@ -469,6 +487,7 @@ document.getElementById("registrar").onclick = async () => {
     monto: amt,
     tarjeta: state.card,
     synced: false,
+    rowNumber: null,
   };
   state.todayRows.unshift(entry);
   persistToday();
@@ -501,7 +520,6 @@ function renderLedger(){
     ledger.innerHTML = '<div class="empty">Todavía no registras gastos hoy.</div>';
   } else {
     ledger.innerHTML = state.todayRows.map((r, index) => {
-      // Compatibilidad con registros antiguos
       const nombreGasto = r.tipoGasto || r.categoria || "Gasto"; 
       return `
       <div class="row">
@@ -520,14 +538,63 @@ function renderLedger(){
   document.getElementById("dayTotal").textContent = "$" + total.toFixed(2);
 }
 
-// Función para eliminar un gasto individual de la lista
-window.deleteEntry = function(index){
-  if (confirm("¿Quieres eliminar este gasto de la lista de hoy?")) {
+// Función para eliminar de la app y de Google Sheets
+window.deleteEntry = async function(index){
+  const entry = state.todayRows[index];
+  if (!entry) return;
+  
+  if (confirm("¿Quieres eliminar este gasto de la lista y de tu Google Sheet?")) {
     state.todayRows.splice(index, 1);
     persistToday();
     renderLedger();
+    
+    if (entry.synced && entry.rowNumber) {
+      await deleteFromSheets(entry.rowNumber);
+    }
   }
 };
+
+async function deleteFromSheets(rowNumber) {
+  if (!state.accessToken || !rowNumber) return;
+  setStatus("", "eliminando de Sheets...");
+  const gid = await fetchSheetGid();
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${state.config.sheetId}:batchUpdate`;
+  
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${state.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: gid || 0,
+              dimension: "ROWS",
+              startIndex: rowNumber - 1,
+              endIndex: rowNumber
+            }
+          }
+        }]
+      })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    
+    // Ajustar números de fila para las demás entradas
+    state.todayRows.forEach(r => {
+      if (r.rowNumber && r.rowNumber > rowNumber) {
+        r.rowNumber--;
+      }
+    });
+    persistToday();
+    setStatus("ok", "eliminado de Sheets");
+  } catch(e) {
+    console.error("Error al eliminar de Sheets:", e);
+    setStatus("err", "error al borrar en Sheets");
+  }
+}
 
 renderLedger();
 
@@ -551,6 +618,13 @@ async function trySync(entry){
       }),
     });
     if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    
+    if (data.updates && data.updates.updatedRange) {
+      const match = data.updates.updatedRange.match(/(\d+):/);
+      if (match) entry.rowNumber = parseInt(match[1]);
+    }
+
     entry.synced = true;
     persistToday();
     renderLedger();
