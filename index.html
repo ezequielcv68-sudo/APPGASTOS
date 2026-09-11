@@ -106,30 +106,11 @@
     margin:12px 0 8px;
   }
 
-  .text-input{
-    width: 100%;
-    padding: 12px 14px;
-    background: transparent;
-    border: 1px solid var(--paper-line);
-    border-radius: 4px;
-    color: var(--paper);
-    font-size: 0.95rem;
-    outline: none;
-    margin-bottom: 10px;
-  }
-  .text-input:focus{
-    border-color: var(--paper);
-  }
-  .text-input::placeholder{
-    color: var(--muted);
-    font-style: italic;
-  }
-
   .chip-grid{
     display:grid;
     grid-template-columns:repeat(3,1fr);
     gap:8px;
-    margin-bottom:18px;
+    margin-bottom:10px;
   }
   .chip{
     border:1px solid var(--paper-line);
@@ -146,6 +127,26 @@
     color:var(--ink);
     border-color:var(--paper);
     font-weight:600;
+  }
+
+  .custom-input-wrap{
+    display:none;
+    margin-top:8px;
+    margin-bottom:12px;
+  }
+  .text-input{
+    width: 100%;
+    padding: 12px 14px;
+    background: transparent;
+    border: 1px solid var(--paper);
+    border-radius: 4px;
+    color: var(--paper);
+    font-size: 0.95rem;
+    outline: none;
+  }
+  .text-input::placeholder{
+    color: var(--muted);
+    font-style: italic;
   }
 
   .payment-grid{
@@ -283,7 +284,6 @@
     </div>
   </div>
 
-  <!-- TARJETA LIMPIA SOLO CON MONTO -->
   <div class="amount-card">
     <div class="amount-label">Monto</div>
     <div class="amount-input-row">
@@ -292,10 +292,7 @@
     </div>
   </div>
 
-  <!-- TIPO DE GASTO -->
   <div class="section-label">Tipo de gasto</div>
-  <input id="customCategory" class="text-input" type="text" placeholder="Describe el gasto (ej. Servicio de carro, Oxxo...)">
-  
   <div class="chip-grid" id="catGrid">
     <button class="chip" data-cat="Gasolina">Gasolina</button>
     <button class="chip" data-cat="Comida">Comida</button>
@@ -305,7 +302,11 @@
     <button class="chip" data-cat="Otros">Otros</button>
   </div>
 
-  <!-- MEDIO DE PAGO -->
+  <!-- RECUADRO OCULTO QUE SOLO APARECE AL TOCAR "OTROS" -->
+  <div class="custom-input-wrap" id="customInputWrap">
+    <input id="customCategory" class="text-input" type="text" placeholder="Describe el gasto (ej. Farmacia, Cine...)">
+  </div>
+
   <div class="section-label">Medio de pago</div>
   <div class="payment-grid" id="cardRow">
     <button class="card-btn" data-card="Banamex Oro"><span class="dot"></span>Banamex Oro</button>
@@ -335,6 +336,8 @@ let state = {
   config: JSON.parse(localStorage.getItem("gastos_config") || "{}"),
   accessToken: null,
   tokenClient: null,
+  category: null,
+  isOtros: false,
   card: null,
   todayRows: JSON.parse(localStorage.getItem("gastos_today") || "[]"),
 };
@@ -390,22 +393,32 @@ function initGoogle(){
 }
 window.addEventListener("load", () => setTimeout(initGoogle, 300));
 
-// ---------- Tipo de Gasto ----------
+// ---------- Control de botones y "Otros" ----------
 const catInput = document.getElementById("customCategory");
-
-catInput.addEventListener("input", () => {
-  document.querySelectorAll(".chip").forEach(c => c.classList.remove("selected"));
-  checkReady();
-});
+const customWrap = document.getElementById("customInputWrap");
 
 document.getElementById("catGrid").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip");
   if (!btn) return;
   document.querySelectorAll(".chip").forEach(c => c.classList.remove("selected"));
   btn.classList.add("selected");
-  catInput.value = btn.dataset.cat;
+  
+  const selectedCat = btn.dataset.cat;
+  if (selectedCat === "Otros") {
+    state.isOtros = true;
+    state.category = null;
+    customWrap.style.display = "block";
+    catInput.focus();
+  } else {
+    state.isOtros = false;
+    state.category = selectedCat;
+    customWrap.style.display = "none";
+    catInput.value = "";
+  }
   checkReady();
 });
+
+catInput.addEventListener("input", checkReady);
 
 // ---------- Medio de pago ----------
 document.getElementById("cardRow").addEventListener("click", (e) => {
@@ -421,20 +434,27 @@ document.getElementById("amount").addEventListener("input", checkReady);
 
 function checkReady(){
   const amt = parseFloat(document.getElementById("amount").value);
-  const cat = catInput.value.trim();
-  document.getElementById("registrar").disabled = !(amt > 0 && cat.length > 0 && state.card);
+  let catValid = false;
+
+  if (state.isOtros) {
+    catValid = catInput.value.trim().length > 0;
+  } else {
+    catValid = state.category !== null;
+  }
+
+  document.getElementById("registrar").disabled = !(amt > 0 && catValid && state.card);
 }
 
 // ---------- Registrar Gasto ----------
 document.getElementById("registrar").onclick = async () => {
   const amt = parseFloat(document.getElementById("amount").value);
-  const cat = catInput.value.trim();
+  const finalCat = state.isOtros ? catInput.value.trim() : state.category;
   const now = new Date();
   
   const entry = {
     fecha: now.toLocaleDateString("es-MX"),
     hora: now.toLocaleTimeString("es-MX", {hour:'2-digit', minute:'2-digit'}),
-    tipoGasto: cat,
+    tipoGasto: finalCat,
     monto: amt,
     tarjeta: state.card,
     synced: false,
@@ -449,7 +469,10 @@ document.getElementById("registrar").onclick = async () => {
 function resetForm(){
   document.getElementById("amount").value = "";
   catInput.value = "";
+  customWrap.style.display = "none";
   document.querySelectorAll(".chip, .card-btn").forEach(c => c.classList.remove("selected"));
+  state.category = null;
+  state.isOtros = false;
   state.card = null;
   document.getElementById("registrar").disabled = true;
 }
