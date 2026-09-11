@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Gastos</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#20232B">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%2320232B'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='%238C2F39' font-family='Georgia,serif'%3E$%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --ink:#20232B;
+    --paper:#E9E4DA;
+    --paper-line:#CFC7B8;
+    --oxblood:#8C2F39;
+    --oxblood-dark:#6E232B;
+    --teal:#3E6259;
+    --muted:#7A7568;
+    --banamex:#D4213D;
+    --bancomer:#0F2D5C;
+    font-size:16px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--ink);
+    color:var(--paper);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .app{
+    width:100%;
+    max-width:480px;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding:24px 20px 32px;
+  }
+  header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:22px;
+  }
+  header h1{
+    font-family:Georgia,'Times New Roman',serif;
+    font-weight:400;
+    font-size:1.5rem;
+    letter-spacing:0.02em;
+    margin:0;
+    color:var(--paper);
+  }
+  #syncDot{
+    width:9px;height:9px;border-radius:50%;
+    background:var(--muted);
+    display:inline-block;
+  }
+  #syncDot.ok{background:var(--teal);}
+  #syncDot.err{background:var(--oxblood);}
+  .status-row{display:flex;align-items:center;gap:8px;font-size:0.8rem;color:var(--muted);}
+
+  .amount-card{
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:4px;
+    padding:22px 20px 18px;
+    margin-bottom:18px;
+  }
+  .amount-label{
+    font-size:0.75rem;
+    color:var(--muted);
+    margin-bottom:4px;
+  }
+  .amount-input-row{
+    display:flex;
+    align-items:baseline;
+    border-bottom:1px solid var(--paper-line);
+    padding-bottom:10px;
+  }
+  .amount-input-row span{
+    font-family:Georgia,serif;
+    font-size:1.8rem;
+    color:var(--muted);
+    margin-right:4px;
+  }
+  #amount{
+    flex:1;
+    border:none;
+    background:transparent;
+    font-family:Georgia,serif;
+    font-size:2.6rem;
+    font-variant-numeric:tabular-nums;
+    color:var(--ink);
+    outline:none;
+    width:100%;
+    min-width:0;
+  }
+  #amount::placeholder{color:var(--paper-line);}
+
+  .section-label{
+    font-size:0.72rem;
+    text-transform:none;
+    color:var(--muted);
+    margin:4px 0 8px;
+  }
+
+  .chip-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:8px;
+    margin-bottom:18px;
+  }
+  .chip{
+    border:1px solid var(--paper-line);
+    background:transparent;
+    color:var(--paper);
+    padding:12px 10px;
+    border-radius:3px;
+    font-size:0.92rem;
+    text-align:left;
+    cursor:pointer;
+  }
+  .chip.selected{
+    background:var(--paper);
+    color:var(--ink);
+    border-color:var(--paper);
+    font-weight:600;
+  }
+
+  .card-row{
+    display:flex;
+    gap:8px;
+    margin-bottom:26px;
+  }
+  .card-btn{
+    flex:1;
+    padding:14px 10px;
+    border-radius:3px;
+    border:1px solid var(--paper-line);
+    background:transparent;
+    color:var(--paper);
+    font-size:0.92rem;
+    font-weight:600;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+  }
+  .card-btn .dot{width:9px;height:9px;border-radius:50%;flex:none;}
+  .card-btn[data-card="banamex"] .dot{background:var(--banamex);}
+  .card-btn[data-card="bancomer"] .dot{background:var(--bancomer);}
+  .card-btn.selected{background:var(--paper);color:var(--ink);border-color:var(--paper);}
+
+  #registrar{
+    width:100%;
+    padding:16px;
+    background:var(--oxblood);
+    color:var(--paper);
+    border:none;
+    border-radius:3px;
+    font-size:1.05rem;
+    font-weight:600;
+    letter-spacing:0.01em;
+    cursor:pointer;
+    margin-bottom:28px;
+  }
+  #registrar:active{background:var(--oxblood-dark);}
+  #registrar:disabled{background:var(--muted);cursor:not-allowed;}
+
+  .day-total{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    border-top:1px solid #3A3E48;
+    padding-top:14px;
+    margin-bottom:10px;
+  }
+  .day-total .label{font-size:0.85rem;color:var(--muted);}
+  .day-total .value{font-family:Georgia,serif;font-size:1.3rem;font-variant-numeric:tabular-nums;}
+
+  .ledger{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    gap:0;
+  }
+  .row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:11px 0;
+    border-bottom:1px dashed #3A3E48;
+    font-size:0.92rem;
+  }
+  .row .left{display:flex;flex-direction:column;gap:2px;}
+  .row .cat{color:var(--paper);}
+  .row .meta{font-size:0.72rem;color:var(--muted);}
+  .row .amt{font-family:Georgia,serif;font-variant-numeric:tabular-nums;font-size:1rem;}
+  .row .pending{color:var(--muted);font-style:italic;font-size:0.72rem;}
+  .empty{color:var(--muted);font-size:0.85rem;padding:16px 0;text-align:center;}
+
+  .setup{
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:4px;
+    padding:18px;
+    margin-bottom:18px;
+    font-size:0.85rem;
+    line-height:1.5;
+  }
+  .setup h2{font-size:0.95rem;margin:0 0 8px;font-family:Georgia,serif;font-weight:400;}
+  .setup label{display:block;font-size:0.72rem;color:var(--muted);margin-top:10px;margin-bottom:3px;}
+  .setup input{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--paper-line);
+    border-radius:3px;
+    font-size:0.85rem;
+    background:#fff;
+  }
+  .setup .btnrow{display:flex;gap:8px;margin-top:14px;}
+  .setup button{
+    padding:10px 14px;
+    border-radius:3px;
+    border:1px solid var(--ink);
+    background:var(--ink);
+    color:var(--paper);
+    font-size:0.82rem;
+    cursor:pointer;
+  }
+  .setup button.secondary{background:transparent;color:var(--ink);}
+  .setup a{color:var(--oxblood);}
+  .toggle-setup{
+    background:none;border:none;color:var(--muted);font-size:0.75rem;
+    text-decoration:underline;cursor:pointer;padding:0;margin-bottom:14px;align-self:flex-start;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <h1>Gastos</h1>
+    <div class="status-row"><span id="syncDot"></span><span id="syncText">sin conectar</span></div>
+  </header>
+
+  <button class="toggle-setup" id="toggleSetup">configurar conexión con Google</button>
+
+  <div class="setup" id="setup" style="display:none;">
+    <h2>Conexión con Google Sheets</h2>
+    <p>Necesitas un Client ID de OAuth (Google Cloud Console, tipo "Web application", con este mismo dominio agregado en "Authorized JavaScript origins") y el ID de una hoja de cálculo de Google Sheets ya creada.</p>
+    <label>Client ID de Google</label>
+    <input id="clientIdInput" placeholder="xxxxxxxx.apps.googleusercontent.com">
+    <label>ID de la hoja de cálculo (Spreadsheet ID)</label>
+    <input id="sheetIdInput" placeholder="1AbC...xyz (de la URL del Sheet)">
+    <label>Nombre de la pestaña</label>
+    <input id="sheetTabInput" placeholder="Gastos" value="Gastos">
+    <div class="btnrow">
+      <button id="saveConfig">Guardar</button>
+      <button class="secondary" id="connectGoogle">Conectar cuenta</button>
+    </div>
+  </div>
+
+  <div class="amount-card">
+    <div class="amount-label">Monto</div>
+    <div class="amount-input-row">
+      <span>$</span>
+      <input id="amount" type="number" inputmode="decimal" placeholder="0.00">
+    </div>
+  </div>
+
+  <div class="section-label">Categoría</div>
+  <div class="chip-grid" id="catGrid">
+    <button class="chip" data-cat="Gasolina">Gasolina</button>
+    <button class="chip" data-cat="Comida">Comida</button>
+    <button class="chip" data-cat="Compras en súper">Compras en súper</button>
+    <button class="chip" data-cat="Gastos hormiga">Gastos hormiga</button>
+    <button class="chip" data-cat="Otros" style="grid-column:span 2;">Otros</button>
+  </div>
+
+  <div class="section-label">Con qué tarjeta</div>
+  <div class="card-row" id="cardRow">
+    <button class="card-btn" data-card="banamex"><span class="dot"></span>Banamex</button>
+    <button class="card-btn" data-card="bancomer"><span class="dot"></span>Bancomer</button>
+  </div>
+
+  <button id="registrar" disabled>Registrar gasto</button>
+
+  <div class="day-total">
+    <span class="label">Hoy</span>
+    <span class="value" id="dayTotal">$0.00</span>
+  </div>
+
+  <div class="ledger" id="ledger">
+    <div class="empty">Todavía no registras gastos hoy.</div>
+  </div>
+
+</div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+const SCOPE = "https://www.googleapis.com/auth/spreadsheets";
+let state = {
+  config: JSON.parse(localStorage.getItem("gastos_config") || "{}"),
+  accessToken: null,
+  tokenClient: null,
+  category: null,
+  card: null,
+  todayRows: JSON.parse(localStorage.getItem("gastos_today") || "[]"),
+};
+
+// ---------- config UI ----------
+const setupEl = document.getElementById("setup");
+document.getElementById("toggleSetup").onclick = () => {
+  setupEl.style.display = setupEl.style.display === "none" ? "block" : "none";
+};
+document.getElementById("clientIdInput").value = state.config.clientId || "";
+document.getElementById("sheetIdInput").value = state.config.sheetId || "";
+document.getElementById("sheetTabInput").value = state.config.sheetTab || "Gastos";
+
+document.getElementById("saveConfig").onclick = () => {
+  state.config = {
+    clientId: document.getElementById("clientIdInput").value.trim(),
+    sheetId: document.getElementById("sheetIdInput").value.trim(),
+    sheetTab: document.getElementById("sheetTabInput").value.trim() || "Gastos",
+  };
+  localStorage.setItem("gastos_config", JSON.stringify(state.config));
+  initGoogle();
+  setupEl.style.display = "none";
+};
+
+document.getElementById("connectGoogle").onclick = () => {
+  if (!state.tokenClient) { initGoogle(); }
+  if (state.tokenClient) state.tokenClient.requestAccessToken({prompt: "consent"});
+};
+
+function setStatus(mode, text){
+  const dot = document.getElementById("syncDot");
+  dot.className = mode;
+  document.getElementById("syncText").textContent = text;
+}
+
+function initGoogle(){
+  if (!state.config.clientId) { setStatus("", "falta configurar"); return; }
+  if (!window.google || !google.accounts) { setTimeout(initGoogle, 300); return; }
+  state.tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: state.config.clientId,
+    scope: SCOPE,
+    callback: (resp) => {
+      if (resp.access_token){
+        state.accessToken = resp.access_token;
+        setStatus("ok", "conectado");
+        flushPending();
+      } else {
+        setStatus("err", "error de conexión");
+      }
+    },
+  });
+  setStatus("", "listo para conectar");
+}
+window.addEventListener("load", () => setTimeout(initGoogle, 300));
+
+// ---------- category / card selection ----------
+document.getElementById("catGrid").addEventListener("click", (e) => {
+  const btn = e.target.closest(".chip");
+  if (!btn) return;
+  document.querySelectorAll(".chip").forEach(c => c.classList.remove("selected"));
+  btn.classList.add("selected");
+  state.category = btn.dataset.cat;
+  checkReady();
+});
+document.getElementById("cardRow").addEventListener("click", (e) => {
+  const btn = e.target.closest(".card-btn");
+  if (!btn) return;
+  document.querySelectorAll(".card-btn").forEach(c => c.classList.remove("selected"));
+  btn.classList.add("selected");
+  state.card = btn.dataset.card === "banamex" ? "Banamex" : "Bancomer";
+  checkReady();
+});
+document.getElementById("amount").addEventListener("input", checkReady);
+
+function checkReady(){
+  const amt = parseFloat(document.getElementById("amount").value);
+  document.getElementById("registrar").disabled = !(amt > 0 && state.category && state.card);
+}
+
+// ---------- register expense ----------
+document.getElementById("registrar").onclick = async () => {
+  const amt = parseFloat(document.getElementById("amount").value);
+  const now = new Date();
+  const entry = {
+    fecha: now.toLocaleDateString("es-MX"),
+    hora: now.toLocaleTimeString("es-MX", {hour:'2-digit', minute:'2-digit'}),
+    categoria: state.category,
+    monto: amt,
+    tarjeta: state.card,
+    synced: false,
+  };
+  state.todayRows.unshift(entry);
+  persistToday();
+  renderLedger();
+  resetForm();
+  await trySync(entry);
+};
+
+function resetForm(){
+  document.getElementById("amount").value = "";
+  document.querySelectorAll(".chip, .card-btn").forEach(c => c.classList.remove("selected"));
+  state.category = null;
+  state.card = null;
+  document.getElementById("registrar").disabled = true;
+}
+
+function persistToday(){
+  const todayStr = new Date().toLocaleDateString("es-MX");
+  state.todayRows = state.todayRows.filter(r => r.fecha === todayStr);
+  localStorage.setItem("gastos_today", JSON.stringify(state.todayRows));
+}
+
+function renderLedger(){
+  const ledger = document.getElementById("ledger");
+  if (state.todayRows.length === 0){
+    ledger.innerHTML = '<div class="empty">Todavía no registras gastos hoy.</div>';
+  } else {
+    ledger.innerHTML = state.todayRows.map(r => `
+      <div class="row">
+        <div class="left">
+          <span class="cat">${r.categoria}</span>
+          <span class="meta">${r.hora} · ${r.tarjeta}${r.synced ? "" : " · <span class='pending'>pendiente de guardar</span>"}</span>
+        </div>
+        <div class="amt">$${r.monto.toFixed(2)}</div>
+      </div>`).join("");
+  }
+  const total = state.todayRows.reduce((s,r) => s + r.monto, 0);
+  document.getElementById("dayTotal").textContent = "$" + total.toFixed(2);
+}
+renderLedger();
+
+// ---------- Google Sheets sync ----------
+async function trySync(entry){
+  if (!state.accessToken){
+    setStatus(state.config.clientId ? "err" : "", state.config.clientId ? "sin sesión: toca conectar" : "falta configurar");
+    return;
+  }
+  const range = encodeURIComponent(`${state.config.sheetTab}!A:E`);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${state.config.sheetId}/values/${range}:append?valueInputOption=USER_ENTERED`;
+  try{
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${state.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        values: [[entry.fecha, entry.hora, entry.categoria, entry.monto, entry.tarjeta]],
+      }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    entry.synced = true;
+    persistToday();
+    renderLedger();
+    setStatus("ok", "guardado en Sheets");
+  } catch(err){
+    setStatus("err", "no se pudo guardar, reintenta");
+    console.error(err);
+  }
+}
+
+async function flushPending(){
+  const pending = state.todayRows.filter(r => !r.synced);
+  for (const entry of pending){
+    await trySync(entry);
+  }
+}
+
+if ("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
