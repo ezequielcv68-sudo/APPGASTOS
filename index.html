@@ -67,8 +67,8 @@
     background:var(--paper);
     color:var(--ink);
     border-radius:4px;
-    padding:18px 20px 14px;
-    margin-bottom:14px;
+    padding:20px 20px 16px;
+    margin-bottom:18px;
   }
   .amount-label{
     font-size:0.75rem;
@@ -78,8 +78,6 @@
   .amount-input-row{
     display:flex;
     align-items:baseline;
-    border-bottom:1px solid var(--paper-line);
-    padding-bottom:8px;
   }
   .amount-input-row span{
     font-family:Georgia,serif;
@@ -92,7 +90,7 @@
     border:none;
     background:transparent;
     font-family:Georgia,serif;
-    font-size:2.4rem;
+    font-size:2.6rem;
     font-variant-numeric:tabular-nums;
     color:var(--ink);
     outline:none;
@@ -102,10 +100,10 @@
   #amount::placeholder{color:var(--paper-line);}
 
   .section-label{
-    font-size:0.72rem;
+    font-size:0.75rem;
     text-transform:none;
     color:var(--muted);
-    margin:10px 0 8px;
+    margin:12px 0 8px;
   }
 
   .text-input{
@@ -115,9 +113,9 @@
     border: 1px solid var(--paper-line);
     border-radius: 4px;
     color: var(--paper);
-    font-size: 1rem;
+    font-size: 0.95rem;
     outline: none;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
   .text-input:focus{
     border-color: var(--paper);
@@ -137,9 +135,9 @@
     border:1px solid var(--paper-line);
     background:transparent;
     color:var(--paper);
-    padding:8px 6px;
+    padding:9px 6px;
     border-radius:3px;
-    font-size:0.75rem;
+    font-size:0.8rem;
     text-align:center;
     cursor:pointer;
   }
@@ -154,10 +152,10 @@
     display:grid;
     grid-template-columns:repeat(2,1fr);
     gap:8px;
-    margin-bottom:20px;
+    margin-bottom:24px;
   }
   .card-btn{
-    padding:10px 8px;
+    padding:11px 8px;
     border-radius:3px;
     border:1px solid var(--paper-line);
     background:transparent;
@@ -187,7 +185,7 @@
     font-weight:600;
     letter-spacing:0.01em;
     cursor:pointer;
-    margin-bottom:24px;
+    margin-bottom:28px;
   }
   #registrar:active{background:var(--oxblood-dark);}
   #registrar:disabled{background:var(--muted);cursor:not-allowed;}
@@ -285,6 +283,7 @@
     </div>
   </div>
 
+  <!-- TARJETA LIMPIA SOLO CON MONTO -->
   <div class="amount-card">
     <div class="amount-label">Monto</div>
     <div class="amount-input-row">
@@ -293,16 +292,20 @@
     </div>
   </div>
 
-  <div class="section-label">¿En qué gastaste?</div>
-  <!-- CAMPO PARA ESCRIBIR A MANO -->
-  <input id="customCategory" class="text-input" type="text" placeholder="Escríbelo a mano (ej. Uber, Cine...)">
+  <!-- TIPO DE GASTO -->
+  <div class="section-label">Tipo de gasto</div>
+  <input id="customCategory" class="text-input" type="text" placeholder="Describe el gasto (ej. Servicio de carro, Oxxo...)">
   
   <div class="chip-grid" id="catGrid">
     <button class="chip" data-cat="Gasolina">Gasolina</button>
     <button class="chip" data-cat="Comida">Comida</button>
     <button class="chip" data-cat="Súper">Súper</button>
+    <button class="chip" data-cat="Gastos hormiga">Gastos hormiga</button>
+    <button class="chip" data-cat="Servicios">Servicios</button>
+    <button class="chip" data-cat="Otros">Otros</button>
   </div>
 
+  <!-- MEDIO DE PAGO -->
   <div class="section-label">Medio de pago</div>
   <div class="payment-grid" id="cardRow">
     <button class="card-btn" data-card="Banamex Oro"><span class="dot"></span>Banamex Oro</button>
@@ -387,27 +390,24 @@ function initGoogle(){
 }
 window.addEventListener("load", () => setTimeout(initGoogle, 300));
 
-
-// ---------- Categoria Manual y Sugerencias ----------
+// ---------- Tipo de Gasto ----------
 const catInput = document.getElementById("customCategory");
 
-// Escuchar cuando el usuario escribe a mano
 catInput.addEventListener("input", () => {
   document.querySelectorAll(".chip").forEach(c => c.classList.remove("selected"));
   checkReady();
 });
 
-// Escuchar cuando toca un botón de sugerencia rápida
 document.getElementById("catGrid").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip");
   if (!btn) return;
   document.querySelectorAll(".chip").forEach(c => c.classList.remove("selected"));
   btn.classList.add("selected");
-  catInput.value = btn.dataset.cat; // Llena el campo de texto automáticamente
+  catInput.value = btn.dataset.cat;
   checkReady();
 });
 
-// ---------- Selección de tarjeta ----------
+// ---------- Medio de pago ----------
 document.getElementById("cardRow").addEventListener("click", (e) => {
   const btn = e.target.closest(".card-btn");
   if (!btn) return;
@@ -434,7 +434,7 @@ document.getElementById("registrar").onclick = async () => {
   const entry = {
     fecha: now.toLocaleDateString("es-MX"),
     hora: now.toLocaleTimeString("es-MX", {hour:'2-digit', minute:'2-digit'}),
-    categoria: cat, // Lo que haya escrito a mano o seleccionado
+    tipoGasto: cat,
     monto: amt,
     tarjeta: state.card,
     synced: false,
@@ -468,7 +468,7 @@ function renderLedger(){
     ledger.innerHTML = state.todayRows.map(r => `
       <div class="row">
         <div class="left">
-          <span class="cat">${r.categoria}</span>
+          <span class="cat">${r.tipoGasto}</span>
           <span class="meta">${r.hora} · ${r.tarjeta}${r.synced ? "" : " · <span class='pending'>pendiente de guardar</span>"}</span>
         </div>
         <div class="amt">$${r.monto.toFixed(2)}</div>
@@ -495,7 +495,7 @@ async function trySync(entry){
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        values: [[entry.fecha, entry.hora, entry.categoria, entry.monto, entry.tarjeta]],
+        values: [[entry.fecha, entry.hora, entry.tipoGasto, entry.monto, entry.tarjeta]],
       }),
     });
     if (!res.ok) throw new Error(await res.text());
