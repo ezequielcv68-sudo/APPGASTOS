@@ -219,7 +219,19 @@
   .row .left{display:flex;flex-direction:column;gap:2px;}
   .row .cat{color:var(--paper);font-weight:500;}
   .row .meta{font-size:0.72rem;color:var(--muted);}
+  .row .right-side{display:flex;align-items:center;gap:12px;}
   .row .amt{font-family:Georgia,serif;font-variant-numeric:tabular-nums;font-size:1rem;}
+  .row .del-btn{
+    background:none;
+    border:none;
+    color:var(--muted);
+    font-size:1.2rem;
+    cursor:pointer;
+    padding:2px 6px;
+    line-height:1;
+    border-radius:3px;
+  }
+  .row .del-btn:hover{color:var(--oxblood);}
   .row .pending{color:var(--muted);font-style:italic;font-size:0.72rem;}
   .empty{color:var(--muted);font-size:0.85rem;padding:16px 0;text-align:center;}
 
@@ -302,7 +314,6 @@
     <button class="chip" data-cat="Otros">Otros</button>
   </div>
 
-  <!-- RECUADRO OCULTO QUE SOLO APARECE AL TOCAR "OTROS" -->
   <div class="custom-input-wrap" id="customInputWrap">
     <input id="customCategory" class="text-input" type="text" placeholder="Describe el gasto (ej. Farmacia, Cine...)">
   </div>
@@ -393,7 +404,7 @@ function initGoogle(){
 }
 window.addEventListener("load", () => setTimeout(initGoogle, 300));
 
-// ---------- Control de botones y "Otros" ----------
+// ---------- Tipo de gasto ----------
 const catInput = document.getElementById("customCategory");
 const customWrap = document.getElementById("customInputWrap");
 
@@ -483,23 +494,41 @@ function persistToday(){
   localStorage.setItem("gastos_today", JSON.stringify(state.todayRows));
 }
 
+// ---------- Renderizar Historial y Eliminar ----------
 function renderLedger(){
   const ledger = document.getElementById("ledger");
   if (state.todayRows.length === 0){
     ledger.innerHTML = '<div class="empty">Todavía no registras gastos hoy.</div>';
   } else {
-    ledger.innerHTML = state.todayRows.map(r => `
+    ledger.innerHTML = state.todayRows.map((r, index) => {
+      // Compatibilidad con registros antiguos
+      const nombreGasto = r.tipoGasto || r.categoria || "Gasto"; 
+      return `
       <div class="row">
         <div class="left">
-          <span class="cat">${r.tipoGasto}</span>
+          <span class="cat">${nombreGasto}</span>
           <span class="meta">${r.hora} · ${r.tarjeta}${r.synced ? "" : " · <span class='pending'>pendiente de guardar</span>"}</span>
         </div>
-        <div class="amt">$${r.monto.toFixed(2)}</div>
-      </div>`).join("");
+        <div class="right-side">
+          <span class="amt">$${r.monto.toFixed(2)}</span>
+          <button class="del-btn" onclick="deleteEntry(${index})" title="Eliminar gasto">&times;</button>
+        </div>
+      </div>`;
+    }).join("");
   }
   const total = state.todayRows.reduce((s,r) => s + r.monto, 0);
   document.getElementById("dayTotal").textContent = "$" + total.toFixed(2);
 }
+
+// Función para eliminar un gasto individual de la lista
+window.deleteEntry = function(index){
+  if (confirm("¿Quieres eliminar este gasto de la lista de hoy?")) {
+    state.todayRows.splice(index, 1);
+    persistToday();
+    renderLedger();
+  }
+};
+
 renderLedger();
 
 // ---------- Google Sheets Sync ----------
