@@ -402,10 +402,13 @@ function initGoogle(){
     },
   });
   setStatus("", "listo para conectar");
+  // Solicita token automáticamente al iniciar si ya hay ID configurado
+  if (state.config.clientId && !state.accessToken) {
+    state.tokenClient.requestAccessToken({prompt: ''});
+  }
 }
 window.addEventListener("load", () => setTimeout(initGoogle, 300));
 
-// ---------- Obtener GID de la hoja de Google ----------
 async function fetchSheetGid() {
   if (!state.accessToken || state.sheetGid !== null) return state.sheetGid;
   try {
@@ -487,7 +490,6 @@ document.getElementById("registrar").onclick = async () => {
     monto: amt,
     tarjeta: state.card,
     synced: false,
-    rowNumber: null,
   };
   state.todayRows.unshift(entry);
   persistToday();
@@ -538,7 +540,6 @@ function renderLedger(){
   document.getElementById("dayTotal").textContent = "$" + total.toFixed(2);
 }
 
-// Función para eliminar de la app y de Google Sheets
 window.deleteEntry = async function(index){
   const entry = state.todayRows[index];
   if (!entry) return;
@@ -547,21 +548,46 @@ window.deleteEntry = async function(index){
     state.todayRows.splice(index, 1);
     persistToday();
     renderLedger();
-    
-    if (entry.synced && entry.rowNumber) {
-      await deleteFromSheets(entry.rowNumber);
-    }
+    await deleteFromSheets(entry);
   }
 };
 
-async function deleteFromSheets(rowNumber) {
-  if (!state.accessToken || !rowNumber) return;
+async function deleteFromSheets(entry) {
+  if (!state.accessToken) {
+    if (state.tokenClient) state.tokenClient.requestAccessToken({prompt: ''});
+    setStatus("err", "sin sesión activa");
+    return;
+  }
   setStatus("", "eliminando de Sheets...");
-  const gid = await fetchSheetGid();
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${state.config.sheetId}:batchUpdate`;
-  
   try {
-    const res = await fetch(url, {
+    const tabName = state.config.sheetTab || "Gastos";
+    const getUrl = `https://sheets.googleapis.com/v4/spreadsheets/${state.config.sheetId}/values/${encodeURIComponent(tabName)}!A:E`;
+    const resGet = await fetch(getUrl, {
+      headers: { "Authorization": `Bearer ${state.accessToken}` }
+    });
+    
+    if (!resGet.ok) throw new Error("No se pudo leer la hoja");
+    const dataGet = await resGet.json();
+    const rows = dataGet.values || [];
+
+    // Buscar la fila exacta comparando Fecha, Hora y Monto
+    let targetRow = -1;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const r = rows[i];
+      if (r && r[0] == entry.fecha && r[1] == entry.hora && parseFloat(r[3]) == parseFloat(entry.monto)) {
+        targetRow = i + 1;
+        break;
+      }
+    }
+
+    if (targetRow === -1) {
+      setStatus("err", "no se encontró el registro en Sheets");
+      return;
+    }
+
+    const gid = await fetchSheetGid();
+    const batchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${state.config.sheetId}:batchUpdate`;
+    const resDel = await fetch(batchUrl, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${state.accessToken}`,
@@ -573,25 +599,18 @@ async function deleteFromSheets(rowNumber) {
             range: {
               sheetId: gid || 0,
               dimension: "ROWS",
-              startIndex: rowNumber - 1,
-              endIndex: rowNumber
+              startIndex: targetRow - 1,
+              endIndex: targetRow
             }
           }
         }]
       })
     });
-    if (!res.ok) throw new Error(await res.text());
-    
-    // Ajustar números de fila para las demás entradas
-    state.todayRows.forEach(r => {
-      if (r.rowNumber && r.rowNumber > rowNumber) {
-        r.rowNumber--;
-      }
-    });
-    persistToday();
+
+    if (!resDel.ok) throw new Error("Error en eliminación");
     setStatus("ok", "eliminado de Sheets");
   } catch(e) {
-    console.error("Error al eliminar de Sheets:", e);
+    console.error("Error al borrar en Sheets:", e);
     setStatus("err", "error al borrar en Sheets");
   }
 }
@@ -618,13 +637,6 @@ async function trySync(entry){
       }),
     });
     if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
-    
-    if (data.updates && data.updates.updatedRange) {
-      const match = data.updates.updatedRange.match(/(\d+):/);
-      if (match) entry.rowNumber = parseInt(match[1]);
-    }
-
     entry.synced = true;
     persistToday();
     renderLedger();
