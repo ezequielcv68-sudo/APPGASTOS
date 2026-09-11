@@ -18,6 +18,7 @@
     --muted:#7A7568;
     --banamex:#D4213D;
     --bancomer:#0F2D5C;
+    --cash:#2E7D32;
     font-size:16px;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -66,8 +67,8 @@
     background:var(--paper);
     color:var(--ink);
     border-radius:4px;
-    padding:22px 20px 18px;
-    margin-bottom:18px;
+    padding:18px 20px 14px;
+    margin-bottom:14px;
   }
   .amount-label{
     font-size:0.75rem;
@@ -78,7 +79,7 @@
     display:flex;
     align-items:baseline;
     border-bottom:1px solid var(--paper-line);
-    padding-bottom:10px;
+    padding-bottom:8px;
   }
   .amount-input-row span{
     font-family:Georgia,serif;
@@ -91,7 +92,7 @@
     border:none;
     background:transparent;
     font-family:Georgia,serif;
-    font-size:2.6rem;
+    font-size:2.4rem;
     font-variant-numeric:tabular-nums;
     color:var(--ink);
     outline:none;
@@ -100,26 +101,37 @@
   }
   #amount::placeholder{color:var(--paper-line);}
 
+  .desc-input{
+    width:100%;
+    border:none;
+    background:transparent;
+    font-size:0.9rem;
+    color:var(--ink);
+    outline:none;
+    padding-top:10px;
+  }
+  .desc-input::placeholder{color:var(--muted);font-style:italic;}
+
   .section-label{
     font-size:0.72rem;
     text-transform:none;
     color:var(--muted);
-    margin:4px 0 8px;
+    margin:10px 0 8px;
   }
 
   .chip-grid{
     display:grid;
     grid-template-columns:repeat(2,1fr);
     gap:8px;
-    margin-bottom:18px;
+    margin-bottom:12px;
   }
   .chip{
     border:1px solid var(--paper-line);
     background:transparent;
     color:var(--paper);
-    padding:12px 10px;
+    padding:10px 10px;
     border-radius:3px;
-    font-size:0.92rem;
+    font-size:0.85rem;
     text-align:left;
     cursor:pointer;
   }
@@ -130,30 +142,31 @@
     font-weight:600;
   }
 
-  .card-row{
-    display:flex;
+  .payment-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
     gap:8px;
-    margin-bottom:26px;
+    margin-bottom:20px;
   }
   .card-btn{
-    flex:1;
-    padding:14px 10px;
+    padding:10px 8px;
     border-radius:3px;
     border:1px solid var(--paper-line);
     background:transparent;
     color:var(--paper);
-    font-size:0.92rem;
-    font-weight:600;
+    font-size:0.82rem;
+    font-weight:500;
     cursor:pointer;
     display:flex;
     align-items:center;
-    justify-content:center;
+    justify-content:flex-start;
     gap:8px;
   }
-  .card-btn .dot{width:9px;height:9px;border-radius:50%;flex:none;}
-  .card-btn[data-card="banamex"] .dot{background:var(--banamex);}
-  .card-btn[data-card="bancomer"] .dot{background:var(--bancomer);}
-  .card-btn.selected{background:var(--paper);color:var(--ink);border-color:var(--paper);}
+  .card-btn .dot{width:8px;height:8px;border-radius:50%;flex:none;}
+  .card-btn[data-card*="Banamex"] .dot{background:var(--banamex);}
+  .card-btn[data-card*="BBVA"] .dot{background:var(--bancomer);}
+  .card-btn[data-card="Efectivo"] .dot{background:var(--cash);}
+  .card-btn.selected{background:var(--paper);color:var(--ink);border-color:var(--paper);font-weight:600;}
 
   #registrar{
     width:100%;
@@ -166,7 +179,7 @@
     font-weight:600;
     letter-spacing:0.01em;
     cursor:pointer;
-    margin-bottom:28px;
+    margin-bottom:24px;
   }
   #registrar:active{background:var(--oxblood-dark);}
   #registrar:disabled{background:var(--muted);cursor:not-allowed;}
@@ -197,7 +210,8 @@
     font-size:0.92rem;
   }
   .row .left{display:flex;flex-direction:column;gap:2px;}
-  .row .cat{color:var(--paper);}
+  .row .cat{color:var(--paper);font-weight:500;}
+  .row .desc{color:var(--paper-line);font-size:0.8rem;}
   .row .meta{font-size:0.72rem;color:var(--muted);}
   .row .amt{font-family:Georgia,serif;font-variant-numeric:tabular-nums;font-size:1rem;}
   .row .pending{color:var(--muted);font-style:italic;font-size:0.72rem;}
@@ -233,7 +247,6 @@
     cursor:pointer;
   }
   .setup button.secondary{background:transparent;color:var(--ink);}
-  .setup a{color:var(--oxblood);}
   .toggle-setup{
     background:none;border:none;color:var(--muted);font-size:0.75rem;
     text-decoration:underline;cursor:pointer;padding:0;margin-bottom:14px;align-self:flex-start;
@@ -252,7 +265,7 @@
 
   <div class="setup" id="setup" style="display:none;">
     <h2>Conexión con Google Sheets</h2>
-    <p>Necesitas un Client ID de OAuth (Google Cloud Console, tipo "Web application", con este mismo dominio agregado en "Authorized JavaScript origins") y el ID de una hoja de cálculo de Google Sheets ya creada.</p>
+    <p>Ingresa tu Client ID y el ID de tu hoja de Google Sheets.</p>
     <label>Client ID de Google</label>
     <input id="clientIdInput" placeholder="xxxxxxxx.apps.googleusercontent.com">
     <label>ID de la hoja de cálculo (Spreadsheet ID)</label>
@@ -271,21 +284,26 @@
       <span>$</span>
       <input id="amount" type="number" inputmode="decimal" placeholder="0.00">
     </div>
+    <input id="description" class="desc-input" type="text" placeholder="¿En qué gastaste? (opcional)">
   </div>
 
   <div class="section-label">Categoría</div>
   <div class="chip-grid" id="catGrid">
     <button class="chip" data-cat="Gasolina">Gasolina</button>
     <button class="chip" data-cat="Comida">Comida</button>
-    <button class="chip" data-cat="Compras en súper">Compras en súper</button>
+    <button class="chip" data-cat="Súper">Súper</button>
     <button class="chip" data-cat="Gastos hormiga">Gastos hormiga</button>
-    <button class="chip" data-cat="Otros" style="grid-column:span 2;">Otros</button>
+    <button class="chip" data-cat="Servicios">Servicios</button>
+    <button class="chip" data-cat="Otros">Otros</button>
   </div>
 
-  <div class="section-label">Con qué tarjeta</div>
-  <div class="card-row" id="cardRow">
-    <button class="card-btn" data-card="banamex"><span class="dot"></span>Banamex</button>
-    <button class="card-btn" data-card="bancomer"><span class="dot"></span>Bancomer</button>
+  <div class="section-label">Medio de pago</div>
+  <div class="payment-grid" id="cardRow">
+    <button class="card-btn" data-card="Banamex Oro"><span class="dot"></span>Banamex Oro</button>
+    <button class="card-btn" data-card="Banamex Costco"><span class="dot"></span>Banamex Costco</button>
+    <button class="card-btn" data-card="Banamex Nómina"><span class="dot"></span>Banamex Nómina</button>
+    <button class="card-btn" data-card="BBVA Platinum"><span class="dot"></span>BBVA Platinum</button>
+    <button class="card-btn" data-card="Efectivo" style="grid-column: span 2;"><span class="dot"></span>Efectivo</button>
   </div>
 
   <button id="registrar" disabled>Registrar gasto</button>
@@ -313,7 +331,7 @@ let state = {
   todayRows: JSON.parse(localStorage.getItem("gastos_today") || "[]"),
 };
 
-// ---------- config UI ----------
+// ---------- Config UI ----------
 const setupEl = document.getElementById("setup");
 document.getElementById("toggleSetup").onclick = () => {
   setupEl.style.display = setupEl.style.display === "none" ? "block" : "none";
@@ -364,7 +382,7 @@ function initGoogle(){
 }
 window.addEventListener("load", () => setTimeout(initGoogle, 300));
 
-// ---------- category / card selection ----------
+// ---------- Selección de categoría y tarjeta ----------
 document.getElementById("catGrid").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip");
   if (!btn) return;
@@ -373,14 +391,16 @@ document.getElementById("catGrid").addEventListener("click", (e) => {
   state.category = btn.dataset.cat;
   checkReady();
 });
+
 document.getElementById("cardRow").addEventListener("click", (e) => {
   const btn = e.target.closest(".card-btn");
   if (!btn) return;
   document.querySelectorAll(".card-btn").forEach(c => c.classList.remove("selected"));
   btn.classList.add("selected");
-  state.card = btn.dataset.card === "banamex" ? "Banamex" : "Bancomer";
+  state.card = btn.dataset.card;
   checkReady();
 });
+
 document.getElementById("amount").addEventListener("input", checkReady);
 
 function checkReady(){
@@ -388,14 +408,16 @@ function checkReady(){
   document.getElementById("registrar").disabled = !(amt > 0 && state.category && state.card);
 }
 
-// ---------- register expense ----------
+// ---------- Registrar Gasto ----------
 document.getElementById("registrar").onclick = async () => {
   const amt = parseFloat(document.getElementById("amount").value);
+  const desc = document.getElementById("description").value.trim();
   const now = new Date();
   const entry = {
     fecha: now.toLocaleDateString("es-MX"),
     hora: now.toLocaleTimeString("es-MX", {hour:'2-digit', minute:'2-digit'}),
     categoria: state.category,
+    descripcion: desc || state.category,
     monto: amt,
     tarjeta: state.card,
     synced: false,
@@ -409,6 +431,7 @@ document.getElementById("registrar").onclick = async () => {
 
 function resetForm(){
   document.getElementById("amount").value = "";
+  document.getElementById("description").value = "";
   document.querySelectorAll(".chip, .card-btn").forEach(c => c.classList.remove("selected"));
   state.category = null;
   state.card = null;
@@ -430,6 +453,7 @@ function renderLedger(){
       <div class="row">
         <div class="left">
           <span class="cat">${r.categoria}</span>
+          ${r.descripcion && r.descripcion !== r.categoria ? `<span class="desc">${r.descripcion}</span>` : ""}
           <span class="meta">${r.hora} · ${r.tarjeta}${r.synced ? "" : " · <span class='pending'>pendiente de guardar</span>"}</span>
         </div>
         <div class="amt">$${r.monto.toFixed(2)}</div>
@@ -440,13 +464,13 @@ function renderLedger(){
 }
 renderLedger();
 
-// ---------- Google Sheets sync ----------
+// ---------- Google Sheets Sync ----------
 async function trySync(entry){
   if (!state.accessToken){
     setStatus(state.config.clientId ? "err" : "", state.config.clientId ? "sin sesión: toca conectar" : "falta configurar");
     return;
   }
-  const range = encodeURIComponent(`${state.config.sheetTab}!A:E`);
+  const range = encodeURIComponent(`${state.config.sheetTab}!A:F`);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${state.config.sheetId}/values/${range}:append?valueInputOption=USER_ENTERED`;
   try{
     const res = await fetch(url, {
@@ -456,7 +480,7 @@ async function trySync(entry){
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        values: [[entry.fecha, entry.hora, entry.categoria, entry.monto, entry.tarjeta]],
+        values: [[entry.fecha, entry.hora, entry.categoria, entry.descripcion, entry.monto, entry.tarjeta]],
       }),
     });
     if (!res.ok) throw new Error(await res.text());
