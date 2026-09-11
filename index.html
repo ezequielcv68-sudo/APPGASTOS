@@ -101,17 +101,6 @@
   }
   #amount::placeholder{color:var(--paper-line);}
 
-  .desc-input{
-    width:100%;
-    border:none;
-    background:transparent;
-    font-size:0.9rem;
-    color:var(--ink);
-    outline:none;
-    padding-top:10px;
-  }
-  .desc-input::placeholder{color:var(--muted);font-style:italic;}
-
   .section-label{
     font-size:0.72rem;
     text-transform:none;
@@ -119,20 +108,39 @@
     margin:10px 0 8px;
   }
 
+  .text-input{
+    width: 100%;
+    padding: 12px 14px;
+    background: transparent;
+    border: 1px solid var(--paper-line);
+    border-radius: 4px;
+    color: var(--paper);
+    font-size: 1rem;
+    outline: none;
+    margin-bottom: 8px;
+  }
+  .text-input:focus{
+    border-color: var(--paper);
+  }
+  .text-input::placeholder{
+    color: var(--muted);
+    font-style: italic;
+  }
+
   .chip-grid{
     display:grid;
-    grid-template-columns:repeat(2,1fr);
+    grid-template-columns:repeat(3,1fr);
     gap:8px;
-    margin-bottom:12px;
+    margin-bottom:18px;
   }
   .chip{
     border:1px solid var(--paper-line);
     background:transparent;
     color:var(--paper);
-    padding:10px 10px;
+    padding:8px 6px;
     border-radius:3px;
-    font-size:0.85rem;
-    text-align:left;
+    font-size:0.75rem;
+    text-align:center;
     cursor:pointer;
   }
   .chip.selected{
@@ -211,7 +219,6 @@
   }
   .row .left{display:flex;flex-direction:column;gap:2px;}
   .row .cat{color:var(--paper);font-weight:500;}
-  .row .desc{color:var(--paper-line);font-size:0.8rem;}
   .row .meta{font-size:0.72rem;color:var(--muted);}
   .row .amt{font-family:Georgia,serif;font-variant-numeric:tabular-nums;font-size:1rem;}
   .row .pending{color:var(--muted);font-style:italic;font-size:0.72rem;}
@@ -284,17 +291,16 @@
       <span>$</span>
       <input id="amount" type="number" inputmode="decimal" placeholder="0.00">
     </div>
-    <input id="description" class="desc-input" type="text" placeholder="¿En qué gastaste? (opcional)">
   </div>
 
-  <div class="section-label">Categoría</div>
+  <div class="section-label">¿En qué gastaste?</div>
+  <!-- CAMPO PARA ESCRIBIR A MANO -->
+  <input id="customCategory" class="text-input" type="text" placeholder="Escríbelo a mano (ej. Uber, Cine...)">
+  
   <div class="chip-grid" id="catGrid">
     <button class="chip" data-cat="Gasolina">Gasolina</button>
     <button class="chip" data-cat="Comida">Comida</button>
     <button class="chip" data-cat="Súper">Súper</button>
-    <button class="chip" data-cat="Gastos hormiga">Gastos hormiga</button>
-    <button class="chip" data-cat="Servicios">Servicios</button>
-    <button class="chip" data-cat="Otros">Otros</button>
   </div>
 
   <div class="section-label">Medio de pago</div>
@@ -326,7 +332,6 @@ let state = {
   config: JSON.parse(localStorage.getItem("gastos_config") || "{}"),
   accessToken: null,
   tokenClient: null,
-  category: null,
   card: null,
   todayRows: JSON.parse(localStorage.getItem("gastos_today") || "[]"),
 };
@@ -382,16 +387,27 @@ function initGoogle(){
 }
 window.addEventListener("load", () => setTimeout(initGoogle, 300));
 
-// ---------- Selección de categoría y tarjeta ----------
+
+// ---------- Categoria Manual y Sugerencias ----------
+const catInput = document.getElementById("customCategory");
+
+// Escuchar cuando el usuario escribe a mano
+catInput.addEventListener("input", () => {
+  document.querySelectorAll(".chip").forEach(c => c.classList.remove("selected"));
+  checkReady();
+});
+
+// Escuchar cuando toca un botón de sugerencia rápida
 document.getElementById("catGrid").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip");
   if (!btn) return;
   document.querySelectorAll(".chip").forEach(c => c.classList.remove("selected"));
   btn.classList.add("selected");
-  state.category = btn.dataset.cat;
+  catInput.value = btn.dataset.cat; // Llena el campo de texto automáticamente
   checkReady();
 });
 
+// ---------- Selección de tarjeta ----------
 document.getElementById("cardRow").addEventListener("click", (e) => {
   const btn = e.target.closest(".card-btn");
   if (!btn) return;
@@ -405,19 +421,20 @@ document.getElementById("amount").addEventListener("input", checkReady);
 
 function checkReady(){
   const amt = parseFloat(document.getElementById("amount").value);
-  document.getElementById("registrar").disabled = !(amt > 0 && state.category && state.card);
+  const cat = catInput.value.trim();
+  document.getElementById("registrar").disabled = !(amt > 0 && cat.length > 0 && state.card);
 }
 
 // ---------- Registrar Gasto ----------
 document.getElementById("registrar").onclick = async () => {
   const amt = parseFloat(document.getElementById("amount").value);
-  const desc = document.getElementById("description").value.trim();
+  const cat = catInput.value.trim();
   const now = new Date();
+  
   const entry = {
     fecha: now.toLocaleDateString("es-MX"),
     hora: now.toLocaleTimeString("es-MX", {hour:'2-digit', minute:'2-digit'}),
-    categoria: state.category,
-    descripcion: desc || state.category,
+    categoria: cat, // Lo que haya escrito a mano o seleccionado
     monto: amt,
     tarjeta: state.card,
     synced: false,
@@ -431,9 +448,8 @@ document.getElementById("registrar").onclick = async () => {
 
 function resetForm(){
   document.getElementById("amount").value = "";
-  document.getElementById("description").value = "";
+  catInput.value = "";
   document.querySelectorAll(".chip, .card-btn").forEach(c => c.classList.remove("selected"));
-  state.category = null;
   state.card = null;
   document.getElementById("registrar").disabled = true;
 }
@@ -453,7 +469,6 @@ function renderLedger(){
       <div class="row">
         <div class="left">
           <span class="cat">${r.categoria}</span>
-          ${r.descripcion && r.descripcion !== r.categoria ? `<span class="desc">${r.descripcion}</span>` : ""}
           <span class="meta">${r.hora} · ${r.tarjeta}${r.synced ? "" : " · <span class='pending'>pendiente de guardar</span>"}</span>
         </div>
         <div class="amt">$${r.monto.toFixed(2)}</div>
@@ -470,7 +485,7 @@ async function trySync(entry){
     setStatus(state.config.clientId ? "err" : "", state.config.clientId ? "sin sesión: toca conectar" : "falta configurar");
     return;
   }
-  const range = encodeURIComponent(`${state.config.sheetTab}!A:F`);
+  const range = encodeURIComponent(`${state.config.sheetTab}!A:E`);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${state.config.sheetId}/values/${range}:append?valueInputOption=USER_ENTERED`;
   try{
     const res = await fetch(url, {
@@ -480,7 +495,7 @@ async function trySync(entry){
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        values: [[entry.fecha, entry.hora, entry.categoria, entry.descripcion, entry.monto, entry.tarjeta]],
+        values: [[entry.fecha, entry.hora, entry.categoria, entry.monto, entry.tarjeta]],
       }),
     });
     if (!res.ok) throw new Error(await res.text());
