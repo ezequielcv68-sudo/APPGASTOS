@@ -1,4 +1,4 @@
-const CACHE = "gastos-v17";
+const CACHE = "gastos-v18";
 const SHELL = ["./", "./index.html", "./manifest.json"];
 
 self.addEventListener("install", (e) => {
