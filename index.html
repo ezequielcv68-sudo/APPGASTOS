@@ -56,22 +56,38 @@
     margin:0;
     color:var(--paper);
   }
-  #syncDot{
-    width:8px;height:8px;border-radius:50%;
-    background:var(--muted);
-    display:inline-block;
-  }
-  #syncDot.ok{background:#4EAB8B;}
-  #syncDot.err{background:var(--oxblood);}
-  .status-row{
+
+  /* Indicador Visual de Nube */
+  .status-icon{
     display:flex;
     align-items:center;
-    gap:6px;
-    font-size:0.78rem;
+    justify-content:center;
+    width:38px;
+    height:38px;
+    border-radius:12px;
+    border:1px solid var(--card-border);
+    background:var(--card-bg);
     color:var(--muted);
-    background: rgba(255,255,255,0.04);
-    padding: 6px 10px;
-    border-radius: 20px;
+    transition:all 0.25s ease;
+  }
+  .status-icon svg{
+    width:20px;
+    height:20px;
+    fill:none;
+    stroke:currentColor;
+    stroke-width:2;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+  }
+  .status-icon.ok{
+    background:rgba(78, 171, 139, 0.12);
+    border-color:rgba(78, 171, 139, 0.35);
+    color:#4EAB8B;
+  }
+  .status-icon.err{
+    background:rgba(229, 83, 97, 0.12);
+    border-color:rgba(229, 83, 97, 0.35);
+    color:#E55361;
   }
 
   .amount-card{
@@ -342,9 +358,8 @@
 
   <header>
     <h1>Gastos</h1>
-    <div class="status-row">
-      <span id="syncDot"></span>
-      <span id="syncText">sin conectar</span>
+    <div id="statusIcon" class="status-icon err" title="sin conectar">
+      <svg viewBox="0 0 24 24"><path d="m2 2 20 20M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.956-.445M20.177 16.177A4.5 4.5 0 0 0 17.5 10h-1.79a7.008 7.008 0 0 0-10.748-2.782"/></svg>
     </div>
   </header>
 
@@ -420,7 +435,7 @@
     <input id="customCategory" class="text-input" type="text" placeholder="Describe el gasto (ej. Cine, Farmacia...)">
   </div>
 
-  <div class="section-label">Metodo de Pago</div>
+  <div class="section-label">Tarjeta</div>
   <div class="payment-grid" id="cardRow">
     <button class="card-btn" data-card="Banamex Oro"><span class="dot"></span>Banamex Oro</button>
     <button class="card-btn" data-card="Banamex Costco"><span class="dot"></span>Banamex Costco</button>
@@ -483,14 +498,22 @@ document.getElementById("connectGoogle").onclick = () => {
   if (state.tokenClient) state.tokenClient.requestAccessToken({prompt: "consent"});
 };
 
+// Control visual del Icono de Nube
 function setStatus(mode, text){
-  const dot = document.getElementById("syncDot");
-  dot.className = mode;
-  document.getElementById("syncText").textContent = text;
+  const statusContainer = document.getElementById("statusIcon");
+  statusContainer.title = text;
+
+  if (mode === "ok") {
+    statusContainer.className = "status-icon ok";
+    statusContainer.innerHTML = `<svg viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>`;
+  } else {
+    statusContainer.className = "status-icon err";
+    statusContainer.innerHTML = `<svg viewBox="0 0 24 24"><path d="m2 2 20 20M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.956-.445M20.177 16.177A4.5 4.5 0 0 0 17.5 10h-1.79a7.008 7.008 0 0 0-10.748-2.782"/></svg>`;
+  }
 }
 
 function initGoogle(){
-  if (!state.config.clientId) { setStatus("", "falta configurar"); return; }
+  if (!state.config.clientId) { setStatus("err", "falta configurar"); return; }
   if (!window.google || !google.accounts) { setTimeout(initGoogle, 300); return; }
   state.tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: state.config.clientId,
@@ -505,7 +528,7 @@ function initGoogle(){
       }
     },
   });
-  setStatus("", "listo para conectar");
+  setStatus("err", "listo para conectar");
   if (state.config.clientId && !state.accessToken) {
     state.tokenClient.requestAccessToken({prompt: ''});
   }
@@ -697,7 +720,6 @@ function renderLedger(){
   document.getElementById("dayTotal").textContent = "$" + total.toFixed(2);
 }
 
-// Cargar gasto en el formulario para editar
 window.editEntry = function(index) {
   const entry = state.todayRows[index];
   if (!entry) return;
@@ -779,7 +801,7 @@ async function updateInSheets(oldEntry, newEntry) {
     setStatus("err", "sin sesión activa");
     return;
   }
-  setStatus("", "actualizando en Sheets...");
+  setStatus("err", "actualizando...");
   try {
     const tabName = state.config.sheetTab || "Gastos";
     const getUrl = `https://sheets.googleapis.com/v4/spreadsheets/${state.config.sheetId}/values/${encodeURIComponent(tabName)}!A:E`;
@@ -834,7 +856,7 @@ async function deleteFromSheets(entry) {
     setStatus("err", "sin sesión activa");
     return;
   }
-  setStatus("", "eliminando de Sheets...");
+  setStatus("err", "eliminando...");
   try {
     const tabName = state.config.sheetTab || "Gastos";
     const getUrl = `https://sheets.googleapis.com/v4/spreadsheets/${state.config.sheetId}/values/${encodeURIComponent(tabName)}!A:E`;
@@ -895,7 +917,7 @@ renderLedger();
 // ---------- Google Sheets Sync ----------
 async function trySync(entry){
   if (!state.accessToken){
-    setStatus(state.config.clientId ? "err" : "", state.config.clientId ? "sin sesión: toca conectar" : "falta configurar");
+    setStatus("err", state.config.clientId ? "sin sesión: toca conectar" : "falta configurar");
     return;
   }
   const range = encodeURIComponent(`${state.config.sheetTab}!A:E`);
