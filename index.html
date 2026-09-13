@@ -154,7 +154,6 @@
   }
   .chip.selected svg{ opacity:1; }
 
-  /* Subcategorías dinámicas */
   .sub-chip-grid{
     display:none;
     grid-template-columns:repeat(3,1fr);
@@ -238,12 +237,24 @@
     font-weight:600;
     letter-spacing:0.01em;
     cursor:pointer;
-    margin-bottom:24px;
+    margin-bottom:12px;
     box-shadow: 0 4px 12px rgba(140, 47, 57, 0.3);
     transition: background 0.15s ease;
   }
   #registrar:active{background:var(--oxblood-dark);}
   #registrar:disabled{background:rgba(255,255,255,0.1);color:var(--muted);box-shadow:none;cursor:not-allowed;}
+
+  .cancel-edit-btn{
+    width:100%;
+    padding:10px;
+    background:transparent;
+    color:var(--muted);
+    border:1px dashed var(--card-border);
+    border-radius:10px;
+    font-size:0.85rem;
+    cursor:pointer;
+    margin-bottom:24px;
+  }
 
   .day-total{
     display:flex;
@@ -273,18 +284,19 @@
   .row .left{display:flex;flex-direction:column;gap:2px;}
   .row .cat{color:var(--paper);font-weight:500;}
   .row .meta{font-size:0.72rem;color:var(--muted);}
-  .row .right-side{display:flex;align-items:center;gap:12px;}
-  .row .amt{font-family:Georgia,serif;font-variant-numeric:tabular-nums;font-size:1rem;}
-  .row .del-btn{
+  .row .right-side{display:flex;align-items:center;gap:8px;}
+  .row .amt{font-family:Georgia,serif;font-variant-numeric:tabular-nums;font-size:1rem;margin-right:4px;}
+  .row .edit-btn, .row .del-btn{
     background:none;
     border:none;
     color:var(--muted);
-    font-size:1.2rem;
+    font-size:1rem;
     cursor:pointer;
-    padding:2px 6px;
+    padding:2px 4px;
     line-height:1;
     border-radius:3px;
   }
+  .row .edit-btn:hover{color:var(--paper);}
   .row .del-btn:hover{color:var(--oxblood);}
   .row .pending{color:var(--muted);font-style:italic;font-size:0.72rem;}
   .empty{color:var(--muted);font-size:0.85rem;padding:16px 0;text-align:center;}
@@ -389,14 +401,12 @@
     </button>
   </div>
 
-  <!-- Sub-opciones de Comida -->
   <div class="sub-chip-grid" id="subComidaWrap">
     <button class="sub-chip" data-sub="Desayuno">Desayuno</button>
     <button class="sub-chip" data-sub="Comida">Comida</button>
     <button class="sub-chip" data-sub="Cena">Cena</button>
   </div>
 
-  <!-- Sub-opciones de Servicios -->
   <div class="sub-chip-grid" id="subServiciosWrap">
     <button class="sub-chip" data-sub="Luz">Luz</button>
     <button class="sub-chip" data-sub="Agua">Agua</button>
@@ -420,6 +430,7 @@
   </div>
 
   <button id="registrar" disabled>Registrar gasto</button>
+  <button id="cancelEdit" class="cancel-edit-btn" style="display:none;">Cancelar edición</button>
 
   <div class="day-total">
     <span class="label">Hoy</span>
@@ -443,6 +454,7 @@ let state = {
   subCategory: null,
   card: null,
   sheetGid: null,
+  editingIndex: null,
   todayRows: JSON.parse(localStorage.getItem("gastos_today") || "[]"),
 };
 
@@ -532,7 +544,6 @@ document.getElementById("catGrid").addEventListener("click", (e) => {
   state.subCategory = null;
   document.querySelectorAll(".sub-chip").forEach(s => s.classList.remove("selected"));
 
-  // Ocultar paneles secundarios
   subComidaWrap.style.display = "none";
   subServiciosWrap.style.display = "none";
   customWrap.style.display = "none";
@@ -550,7 +561,6 @@ document.getElementById("catGrid").addEventListener("click", (e) => {
   checkReady();
 });
 
-// Selección de Sub-chips (Comida y Servicios)
 [subComidaWrap, subServiciosWrap].forEach(wrap => {
   wrap.addEventListener("click", (e) => {
     const btn = e.target.closest(".sub-chip");
@@ -591,7 +601,7 @@ function checkReady(){
   document.getElementById("registrar").disabled = !(amt > 0 && catValid && state.card);
 }
 
-// ---------- Registrar Gasto ----------
+// ---------- Registrar o Editar Gasto ----------
 document.getElementById("registrar").onclick = async () => {
   const amt = parseFloat(document.getElementById("amount").value);
   let finalCat = state.mainCategory;
@@ -603,19 +613,40 @@ document.getElementById("registrar").onclick = async () => {
   }
 
   const now = new Date();
-  const entry = {
-    fecha: now.toLocaleDateString("es-MX"),
-    hora: now.toLocaleTimeString("es-MX", {hour:'2-digit', minute:'2-digit'}),
-    tipoGasto: finalCat,
-    monto: amt,
-    tarjeta: state.card,
-    synced: false,
-  };
-  state.todayRows.unshift(entry);
-  persistToday();
-  renderLedger();
+
+  if (state.editingIndex !== null) {
+    const oldEntry = { ...state.todayRows[state.editingIndex] };
+    const updatedEntry = {
+      ...oldEntry,
+      tipoGasto: finalCat,
+      monto: amt,
+      tarjeta: state.card,
+    };
+
+    state.todayRows[state.editingIndex] = updatedEntry;
+    persistToday();
+    renderLedger();
+    resetForm();
+    await updateInSheets(oldEntry, updatedEntry);
+  } else {
+    const entry = {
+      fecha: now.toLocaleDateString("es-MX"),
+      hora: now.toLocaleTimeString("es-MX", {hour:'2-digit', minute:'2-digit'}),
+      tipoGasto: finalCat,
+      monto: amt,
+      tarjeta: state.card,
+      synced: false,
+    };
+    state.todayRows.unshift(entry);
+    persistToday();
+    renderLedger();
+    resetForm();
+    await trySync(entry);
+  }
+};
+
+document.getElementById("cancelEdit").onclick = () => {
   resetForm();
-  await trySync(entry);
 };
 
 function resetForm(){
@@ -628,6 +659,9 @@ function resetForm(){
   state.mainCategory = null;
   state.subCategory = null;
   state.card = null;
+  state.editingIndex = null;
+  document.getElementById("registrar").textContent = "Registrar gasto";
+  document.getElementById("cancelEdit").style.display = "none";
   document.getElementById("registrar").disabled = true;
 }
 
@@ -637,7 +671,7 @@ function persistToday(){
   localStorage.setItem("gastos_today", JSON.stringify(state.todayRows));
 }
 
-// ---------- Renderizar Historial y Eliminar ----------
+// ---------- Renderizar Historial, Editar y Eliminar ----------
 function renderLedger(){
   const ledger = document.getElementById("ledger");
   if (state.todayRows.length === 0){
@@ -653,6 +687,7 @@ function renderLedger(){
         </div>
         <div class="right-side">
           <span class="amt">$${r.monto.toFixed(2)}</span>
+          <button class="edit-btn" onclick="editEntry(${index})" title="Editar gasto">✏️</button>
           <button class="del-btn" onclick="deleteEntry(${index})" title="Eliminar gasto">&times;</button>
         </div>
       </div>`;
@@ -660,6 +695,70 @@ function renderLedger(){
   }
   const total = state.todayRows.reduce((s,r) => s + r.monto, 0);
   document.getElementById("dayTotal").textContent = "$" + total.toFixed(2);
+}
+
+// Cargar gasto en el formulario para editar
+window.editEntry = function(index) {
+  const entry = state.todayRows[index];
+  if (!entry) return;
+
+  state.editingIndex = index;
+  document.getElementById("amount").value = entry.monto;
+
+  document.querySelectorAll(".chip, .sub-chip, .card-btn").forEach(c => c.classList.remove("selected"));
+  subComidaWrap.style.display = "none";
+  subServiciosWrap.style.display = "none";
+  customWrap.style.display = "none";
+
+  const catStr = entry.tipoGasto || entry.categoria || "";
+  if (catStr.startsWith("Comida (")) {
+    state.mainCategory = "Comida";
+    const sub = catStr.replace("Comida (", "").replace(")", "");
+    state.subCategory = sub;
+    subComidaWrap.style.display = "grid";
+    highlightChip("Comida");
+    highlightSubChip(subComidaWrap, sub);
+  } else if (catStr.startsWith("Servicios (")) {
+    state.mainCategory = "Servicios";
+    const sub = catStr.replace("Servicios (", "").replace(")", "");
+    state.subCategory = sub;
+    subServiciosWrap.style.display = "grid";
+    highlightChip("Servicios");
+    highlightSubChip(subServiciosWrap, sub);
+  } else if (["Gasolina", "Comida", "Súper", "Gastos médicos", "Servicios"].includes(catStr)) {
+    state.mainCategory = catStr;
+    highlightChip(catStr);
+  } else {
+    state.mainCategory = "Otros";
+    highlightChip("Otros");
+    customWrap.style.display = "block";
+    catInput.value = catStr;
+  }
+
+  state.card = entry.tarjeta;
+  highlightCard(entry.tarjeta);
+
+  document.getElementById("registrar").textContent = "Guardar cambios";
+  document.getElementById("cancelEdit").style.display = "block";
+
+  checkReady();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+function highlightChip(catName) {
+  document.querySelectorAll("#catGrid .chip").forEach(c => {
+    if (c.dataset.cat === catName) c.classList.add("selected");
+  });
+}
+function highlightSubChip(wrap, subName) {
+  wrap.querySelectorAll(".sub-chip").forEach(s => {
+    if (s.dataset.sub === subName) s.classList.add("selected");
+  });
+}
+function highlightCard(cardName) {
+  document.querySelectorAll("#cardRow .card-btn").forEach(c => {
+    if (c.dataset.card === cardName) c.classList.add("selected");
+  });
 }
 
 window.deleteEntry = async function(index){
@@ -673,6 +772,61 @@ window.deleteEntry = async function(index){
     await deleteFromSheets(entry);
   }
 };
+
+async function updateInSheets(oldEntry, newEntry) {
+  if (!state.accessToken) {
+    if (state.tokenClient) state.tokenClient.requestAccessToken({prompt: ''});
+    setStatus("err", "sin sesión activa");
+    return;
+  }
+  setStatus("", "actualizando en Sheets...");
+  try {
+    const tabName = state.config.sheetTab || "Gastos";
+    const getUrl = `https://sheets.googleapis.com/v4/spreadsheets/${state.config.sheetId}/values/${encodeURIComponent(tabName)}!A:E`;
+    const resGet = await fetch(getUrl, {
+      headers: { "Authorization": `Bearer ${state.accessToken}` }
+    });
+    
+    if (!resGet.ok) throw new Error("No se pudo leer la hoja");
+    const dataGet = await resGet.json();
+    const rows = dataGet.values || [];
+
+    let targetRow = -1;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const r = rows[i];
+      if (r && r[0] == oldEntry.fecha && r[1] == oldEntry.hora && parseFloat(r[3]) == parseFloat(oldEntry.monto)) {
+        targetRow = i + 1;
+        break;
+      }
+    }
+
+    if (targetRow === -1) {
+      await trySync(newEntry);
+      return;
+    }
+
+    const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${state.config.sheetId}/values/${encodeURIComponent(tabName)}!A${targetRow}:E${targetRow}?valueInputOption=USER_ENTERED`;
+    const resUpdate = await fetch(updateUrl, {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${state.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        values: [[newEntry.fecha, newEntry.hora, newEntry.tipoGasto, newEntry.monto, newEntry.tarjeta]]
+      })
+    });
+
+    if (!resUpdate.ok) throw new Error("Error al actualizar");
+    newEntry.synced = true;
+    persistToday();
+    renderLedger();
+    setStatus("ok", "actualizado en Sheets");
+  } catch(e) {
+    console.error("Error al actualizar en Sheets:", e);
+    setStatus("err", "error al actualizar en Sheets");
+  }
+}
 
 async function deleteFromSheets(entry) {
   if (!state.accessToken) {
