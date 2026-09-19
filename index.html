@@ -57,7 +57,6 @@
     color:var(--paper);
   }
 
-  /* Indicador Visual de Nube */
   .status-icon{
     display:flex;
     align-items:center;
@@ -272,6 +271,34 @@
     margin-bottom:24px;
   }
 
+  .period-tabs{
+    display:flex;
+    gap:6px;
+    margin-top:10px;
+    margin-bottom:12px;
+    background:rgba(255,255,255,0.03);
+    padding:4px;
+    border-radius:10px;
+    border:1px solid var(--card-border);
+  }
+  .period-btn{
+    flex:1;
+    padding:8px 0;
+    background:transparent;
+    border:none;
+    color:var(--muted);
+    font-size:0.8rem;
+    font-weight:500;
+    border-radius:6px;
+    cursor:pointer;
+    transition:all 0.2s ease;
+  }
+  .period-btn.active{
+    background:var(--paper);
+    color:var(--ink);
+    font-weight:600;
+  }
+
   .day-total{
     display:flex;
     justify-content:space-between;
@@ -351,6 +378,76 @@
     background:none;border:none;color:var(--muted);font-size:0.75rem;
     text-decoration:underline;cursor:pointer;padding:0;margin-bottom:14px;align-self:flex-start;
   }
+
+  /* ========== ESTILOS VENTANA EMERGENTE (MODAL) ========== */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(10, 12, 16, 0.7);
+    backdrop-filter: blur(5px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  .modal-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .modal-box {
+    background: var(--ink);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 24px;
+    width: 85%;
+    max-width: 320px;
+    transform: translateY(20px) scale(0.95);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+  .modal-overlay.active .modal-box {
+    transform: translateY(0) scale(1);
+  }
+  .modal-title {
+    color: var(--paper);
+    font-family: Georgia, serif;
+    font-size: 1.3rem;
+    margin: 0 0 10px;
+  }
+  .modal-body {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+  }
+  .modal-btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+  .modal-btn.cancel {
+    background: rgba(255,255,255,0.05);
+    color: var(--paper);
+  }
+  .modal-btn.cancel:active { background: rgba(255,255,255,0.1); }
+  
+  .modal-btn.confirm {
+    background: var(--oxblood);
+    color: var(--paper);
+  }
+  .modal-btn.confirm:active { background: var(--oxblood-dark); }
 </style>
 </head>
 <body>
@@ -435,7 +532,7 @@
     <input id="customCategory" class="text-input" type="text" placeholder="Describe el gasto (ej. Cine, Farmacia...)">
   </div>
 
-  <div class="section-label">Metodo de Pago</div>
+  <div class="section-label">Método de Pago</div>
   <div class="payment-grid" id="cardRow">
     <button class="card-btn" data-card="Banamex Oro"><span class="dot"></span>Banamex Oro</button>
     <button class="card-btn" data-card="Banamex Costco"><span class="dot"></span>Banamex Costco</button>
@@ -447,8 +544,15 @@
   <button id="registrar" disabled>Registrar gasto</button>
   <button id="cancelEdit" class="cancel-edit-btn" style="display:none;">Cancelar edición</button>
 
+  <!-- Pestañas de Período -->
+  <div class="period-tabs">
+    <button class="period-btn active" data-period="hoy">Hoy</button>
+    <button class="period-btn" data-period="semana">Semana</button>
+    <button class="period-btn" data-period="mes">Mes</button>
+  </div>
+
   <div class="day-total">
-    <span class="label">Hoy</span>
+    <span class="label" id="periodLabel">Hoy</span>
     <span class="value" id="dayTotal">$0.00</span>
   </div>
 
@@ -456,6 +560,18 @@
     <div class="empty">Todavía no registras gastos hoy.</div>
   </div>
 
+</div>
+
+<!-- ========== ESTRUCTURA DEL MODAL ========== -->
+<div class="modal-overlay" id="customModal">
+  <div class="modal-box">
+    <h3 class="modal-title" id="modalTitle">Atención</h3>
+    <p class="modal-body" id="modalBody">¿Estás seguro de continuar?</p>
+    <div class="modal-actions">
+      <button class="modal-btn cancel" id="modalCancel">Cancelar</button>
+      <button class="modal-btn confirm" id="modalConfirm">Eliminar</button>
+    </div>
+  </div>
 </div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -470,8 +586,37 @@ let state = {
   card: null,
   sheetGid: null,
   editingIndex: null,
+  viewPeriod: "hoy", 
+  sheetRows: [],     
   todayRows: JSON.parse(localStorage.getItem("gastos_today") || "[]"),
 };
+
+// ---------- Lógica de Ventana Emergente (Modal) ----------
+function showConfirmModal(title, message, confirmText = "Eliminar") {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("customModal");
+    document.getElementById("modalTitle").textContent = title;
+    document.getElementById("modalBody").textContent = message;
+    
+    const btnCancel = document.getElementById("modalCancel");
+    const btnConfirm = document.getElementById("modalConfirm");
+    btnConfirm.textContent = confirmText;
+    
+    modal.classList.add("active");
+
+    const cleanup = () => {
+      modal.classList.remove("active");
+      btnCancel.removeEventListener("click", onCancel);
+      btnConfirm.removeEventListener("click", onConfirm);
+    };
+
+    const onCancel = () => { cleanup(); resolve(false); };
+    const onConfirm = () => { cleanup(); resolve(true); };
+
+    btnCancel.addEventListener("click", onCancel);
+    btnConfirm.addEventListener("click", onConfirm);
+  });
+}
 
 // ---------- Config UI ----------
 const setupEl = document.getElementById("setup");
@@ -498,7 +643,6 @@ document.getElementById("connectGoogle").onclick = () => {
   if (state.tokenClient) state.tokenClient.requestAccessToken({prompt: "consent"});
 };
 
-// Control visual del Icono de Nube
 function setStatus(mode, text){
   const statusContainer = document.getElementById("statusIcon");
   statusContainer.title = text;
@@ -518,11 +662,12 @@ function initGoogle(){
   state.tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: state.config.clientId,
     scope: SCOPE,
-    callback: (resp) => {
+    callback: async (resp) => {
       if (resp.access_token){
         state.accessToken = resp.access_token;
         setStatus("ok", "conectado");
-        flushPending();
+        await flushPending();
+        if (state.viewPeriod !== "hoy") await fetchAllSheetRows();
       } else {
         setStatus("err", "error de conexión");
       }
@@ -551,7 +696,61 @@ async function fetchSheetGid() {
   }
 }
 
-// ---------- Categorías y Subcategorías ----------
+async function fetchAllSheetRows() {
+  if (!state.accessToken || !state.config.sheetId) return;
+  try {
+    const tabName = state.config.sheetTab || "Gastos";
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${state.config.sheetId}/values/${encodeURIComponent(tabName)}!A:E`, {
+      headers: { "Authorization": `Bearer ${state.accessToken}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      state.sheetRows = data.values || [];
+      renderLedger();
+    }
+  } catch(e) {
+    console.error("Error al cargar historial completo:", e);
+  }
+}
+
+document.querySelectorAll(".period-btn").forEach(btn => {
+  btn.addEventListener("click", async (e) => {
+    document.querySelectorAll(".period-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    state.viewPeriod = btn.dataset.period;
+
+    const labels = { hoy: "Hoy", semana: "Esta Semana", mes: "Este Mes" };
+    document.getElementById("periodLabel").textContent = labels[state.viewPeriod];
+
+    if (state.viewPeriod !== "hoy") {
+      await fetchAllSheetRows();
+    } else {
+      renderLedger();
+    }
+  });
+});
+
+function parseMXDate(str) {
+  if (!str) return null;
+  const parts = str.split('/');
+  if (parts.length !== 3) return null;
+  return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+}
+
+function isSameWeek(d1, d2) {
+  const getMonday = (d) => {
+    const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(date.setDate(diff)).getTime();
+  };
+  return getMonday(d1) === getMonday(d2);
+}
+
+function isSameMonth(d1, d2) {
+  return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth();
+}
+
 const catInput = document.getElementById("customCategory");
 const customWrap = document.getElementById("customInputWrap");
 const subComidaWrap = document.getElementById("subComidaWrap");
@@ -580,7 +779,6 @@ document.getElementById("catGrid").addEventListener("click", (e) => {
     customWrap.style.display = "block";
     catInput.focus();
   }
-
   checkReady();
 });
 
@@ -597,7 +795,6 @@ document.getElementById("catGrid").addEventListener("click", (e) => {
 
 catInput.addEventListener("input", checkReady);
 
-// ---------- Medio de pago ----------
 document.getElementById("cardRow").addEventListener("click", (e) => {
   const btn = e.target.closest(".card-btn");
   if (!btn) return;
@@ -620,11 +817,9 @@ function checkReady(){
   } else {
     catValid = state.mainCategory !== null;
   }
-
   document.getElementById("registrar").disabled = !(amt > 0 && catValid && state.card);
 }
 
-// ---------- Registrar o Editar Gasto ----------
 document.getElementById("registrar").onclick = async () => {
   const amt = parseFloat(document.getElementById("amount").value);
   let finalCat = state.mainCategory;
@@ -666,6 +861,8 @@ document.getElementById("registrar").onclick = async () => {
     resetForm();
     await trySync(entry);
   }
+
+  if (state.viewPeriod !== "hoy") await fetchAllSheetRows();
 };
 
 document.getElementById("cancelEdit").onclick = () => {
@@ -694,14 +891,55 @@ function persistToday(){
   localStorage.setItem("gastos_today", JSON.stringify(state.todayRows));
 }
 
-// ---------- Renderizar Historial, Editar y Eliminar ----------
+function getFilteredRows() {
+  if (state.viewPeriod === "hoy") {
+    return state.todayRows.map((r, index) => ({ ...r, localIndex: index }));
+  }
+  const now = new Date();
+  const filtered = [];
+  for (let i = 1; i < state.sheetRows.length; i++) {
+    const row = state.sheetRows[i];
+    if (!row || row.length < 4) continue;
+    const rDate = parseMXDate(row[0]);
+    if (!rDate) continue;
+
+    let isMatch = false;
+    if (state.viewPeriod === "semana" && isSameWeek(rDate, now)) {
+      isMatch = true;
+    } else if (state.viewPeriod === "mes" && isSameMonth(rDate, now)) {
+      isMatch = true;
+    }
+
+    if (isMatch) {
+      filtered.push({
+        fecha: row[0],
+        hora: row[1],
+        tipoGasto: row[2],
+        monto: parseFloat(row[3]) || 0,
+        tarjeta: row[4] || "",
+        synced: true,
+      });
+    }
+  }
+  return filtered.reverse();
+}
+
 function renderLedger(){
   const ledger = document.getElementById("ledger");
-  if (state.todayRows.length === 0){
-    ledger.innerHTML = '<div class="empty">Todavía no registras gastos hoy.</div>';
+  const rows = getFilteredRows();
+
+  if (rows.length === 0){
+    const txt = state.viewPeriod === "hoy" ? "hoy" : (state.viewPeriod === "semana" ? "esta semana" : "este mes");
+    ledger.innerHTML = `<div class="empty">Todavía no hay gastos en ${txt}.</div>`;
   } else {
-    ledger.innerHTML = state.todayRows.map((r, index) => {
-      const nombreGasto = r.tipoGasto || r.categoria || "Gasto"; 
+    ledger.innerHTML = rows.map((r) => {
+      const nombreGasto = r.tipoGasto || r.categoria || "Gasto";
+      const isHoy = state.viewPeriod === "hoy";
+      const actions = isHoy ? `
+        <button class="edit-btn" onclick="editEntry(${r.localIndex})" title="Editar gasto">✏️</button>
+        <button class="del-btn" onclick="deleteEntry(${r.localIndex})" title="Eliminar gasto">&times;</button>
+      ` : `<span class="meta">${r.fecha}</span>`;
+
       return `
       <div class="row">
         <div class="left">
@@ -710,13 +948,12 @@ function renderLedger(){
         </div>
         <div class="right-side">
           <span class="amt">$${r.monto.toFixed(2)}</span>
-          <button class="edit-btn" onclick="editEntry(${index})" title="Editar gasto">✏️</button>
-          <button class="del-btn" onclick="deleteEntry(${index})" title="Eliminar gasto">&times;</button>
+          ${actions}
         </div>
       </div>`;
     }).join("");
   }
-  const total = state.todayRows.reduce((s,r) => s + r.monto, 0);
+  const total = rows.reduce((s, r) => s + r.monto, 0);
   document.getElementById("dayTotal").textContent = "$" + total.toFixed(2);
 }
 
@@ -783,15 +1020,22 @@ function highlightCard(cardName) {
   });
 }
 
+// AQUI ESTÁ EL CAMBIO PARA USAR LA VENTANA EMERGENTE
 window.deleteEntry = async function(index){
   const entry = state.todayRows[index];
   if (!entry) return;
   
-  if (confirm("¿Quieres eliminar este gasto de la lista y de tu Google Sheet?")) {
+  const isConfirmed = await showConfirmModal(
+    "Eliminar Gasto", 
+    "¿Seguro que deseas eliminar este gasto permanentemente? Se borrará de tu teléfono y de Google Sheets."
+  );
+
+  if (isConfirmed) {
     state.todayRows.splice(index, 1);
     persistToday();
     renderLedger();
     await deleteFromSheets(entry);
+    if (state.viewPeriod !== "hoy") await fetchAllSheetRows();
   }
 };
 
@@ -914,7 +1158,6 @@ async function deleteFromSheets(entry) {
 
 renderLedger();
 
-// ---------- Google Sheets Sync ----------
 async function trySync(entry){
   if (!state.accessToken){
     setStatus("err", state.config.clientId ? "sin sesión: toca conectar" : "falta configurar");
